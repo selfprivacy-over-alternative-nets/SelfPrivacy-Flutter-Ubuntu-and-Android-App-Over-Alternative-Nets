@@ -1,0 +1,17 @@
+name: ionicons
+description: Ionicons icon set — local patch for Dart 3 final-class compatibility
+version: 0.2.2
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  fonts:
+    - family: Ionicons
+      fonts:
+        - asset: assets/fonts/Ionicons.ttf
