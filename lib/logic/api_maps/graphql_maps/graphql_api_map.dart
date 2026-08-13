@@ -164,7 +164,19 @@ abstract class GraphQLApiMap {
     // 1. RequestLoggingLink -> AuthLink -> [_OnionRetryLink ->] HttpLink
     // 2. RequestLoggingLink -> [_OnionRetryLink ->] HttpLink
 
-    return GraphQLClient(cache: GraphQLCache(), link: graphQLLink);
+    return GraphQLClient(
+      cache: GraphQLCache(),
+      link: graphQLLink,
+      // Onion (Tor) circuits routinely take 5-15s to build on a cold start. The
+      // graphql default queryRequestTimeout is only 5s, so the very first request
+      // (getApiVersion in ApiConnectionRepository.init) would time out with
+      // "TimeoutException after 5s: No stream event" and drop the whole app to
+      // "offline" — no services, endless loading — until a lucky warm retry.
+      // Give onion requests real headroom; clearnet keeps the 5s default so the
+      // nominal (non-Tor) path is unchanged.
+      queryRequestTimeout:
+          isOnion ? const Duration(seconds: 30) : const Duration(seconds: 5),
+    );
   }
 
   Future<GraphQLClient> getSubscriptionClient({
