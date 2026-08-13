@@ -350,6 +350,13 @@ class ApiConnectionRepository {
     if (apiVersion == null) {
       connectionStatus = ConnectionStatus.offline;
       _connectionStatusStream.add(connectionStatus);
+      // Onion (Tor) connections are flaky on a cold start: the first request can
+      // hit a transient SOCKS "hostUnreachable"/"ttlExpired" while the hidden
+      // service descriptor is still being fetched, even though the box is up and
+      // a retry seconds later succeeds. Previously init() gave up here with no
+      // timer, so the app sat on "offline" forever and only a manual restart
+      // could recover. Keep a periodic reload() running so it auto-reconnects.
+      _timer ??= Timer.periodic(const Duration(seconds: 10), reload);
       return;
     } else {
       _apiData.apiVersion.data = apiVersion;
@@ -376,8 +383,9 @@ class ApiConnectionRepository {
           });
     }
 
-    // Use timer to periodically check for new jobs
-    _timer = Timer.periodic(const Duration(seconds: 10), reload);
+    // Use timer to periodically check for new jobs (guard against a duplicate if
+    // the offline branch already started one on an earlier flaky attempt).
+    _timer ??= Timer.periodic(const Duration(seconds: 10), reload);
   }
 
   Future<void> clear() async {
