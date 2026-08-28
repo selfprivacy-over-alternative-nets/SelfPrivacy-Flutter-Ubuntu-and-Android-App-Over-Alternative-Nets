@@ -27,11 +27,21 @@ import 'package:timezone/data/latest.dart' as tz;
 Future<void> _setupOnionServer(String onionDomain, String apiToken) async {
   final resourcesModel = getIt<ResourcesModel>();
 
-  // Skip if already configured, but ensure onboarding is disabled
+  // A server may already be configured from a previous run (persisted in Hive). If it still matches
+  // the requested onion + token, keep it (fast path). If it's STALE — e.g. the backend was
+  // reinstalled and now has a different .onion — wipe it so the compile-time --dart-define values
+  // win. Otherwise the app keeps dialing the dead onion and every request fails at the SOCKS layer
+  // with `hostUnreachable`, which looks like a connection bug but is really stale local state.
   if (resourcesModel.servers.isNotEmpty) {
-    final appSettingsBox = Hive.box(BNames.appSettingsBox);
-    await appSettingsBox.put(BNames.shouldShowOnboarding, false);
-    return;
+    final existing = resourcesModel.servers.first;
+    final matchesCurrent = existing.domain.domainName == onionDomain &&
+        existing.hostingDetails.apiToken == apiToken;
+    if (matchesCurrent) {
+      final appSettingsBox = Hive.box(BNames.appSettingsBox);
+      await appSettingsBox.put(BNames.shouldShowOnboarding, false);
+      return;
+    }
+    await resourcesModel.removeServer(existing); // stale — drop it, reconfigure below with current
   }
 
   final serverDomain = ServerDomain(
