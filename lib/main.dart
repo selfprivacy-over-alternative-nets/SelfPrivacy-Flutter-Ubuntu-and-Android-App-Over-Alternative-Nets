@@ -23,8 +23,9 @@ import 'package:selfprivacy/ui/router/router.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:timezone/data/latest.dart' as tz;
 
-/// Configure a .onion server connection in ResourcesModel and skip onboarding.
-Future<void> _setupOnionServer(String onionDomain, String apiToken) async {
+/// Configure a server connection (onion or clearnet domain) in ResourcesModel and skip onboarding.
+/// The transport is chosen later by whether [onionDomain] ends in `.onion` (GraphQLApiMap.getClient).
+Future<void> _setupServer(String onionDomain, String apiToken) async {
   final resourcesModel = getIt<ResourcesModel>();
 
   // A server may already be configured from a previous run (persisted in Hive). If it still matches
@@ -184,20 +185,26 @@ void main() async {
     ]);
     await getItSetup();
 
-    // Compile-time values from --dart-define (optional)
+    // Compile-time values from --dart-define (optional). ONION_DOMAIN routes over Tor (SOCKS);
+    // HTTPS_DOMAIN routes over clearnet HTTPS (api.<domain>). The connection transport is chosen
+    // downstream by whether the address ends in `.onion` (see GraphQLApiMap.getClient).
     const compileDomain =
         String.fromEnvironment('ONION_DOMAIN', defaultValue: '');
+    const compileHttpsDomain =
+        String.fromEnvironment('HTTPS_DOMAIN', defaultValue: '');
     const compileToken =
         String.fromEnvironment('API_TOKEN', defaultValue: '');
+    final compileAddress =
+        compileDomain.isNotEmpty ? compileDomain : compileHttpsDomain;
 
-    if (kDebugMode && compileDomain.isNotEmpty && compileToken.isNotEmpty) {
+    if (kDebugMode && compileAddress.isNotEmpty && compileToken.isNotEmpty) {
       // Auto-setup from compile-time --dart-define values
-      await _setupOnionServer(compileDomain, compileToken);
+      await _setupServer(compileAddress, compileToken);
     } else if (kDebugMode && getIt<ResourcesModel>().servers.isEmpty) {
       // No compile-time domain and no server configured: prompt at runtime
       final result = await _showOnionSetupPrompt();
       if (result != null) {
-        await _setupOnionServer(result.domain, result.token);
+        await _setupServer(result.domain, result.token);
       }
     }
   } on PlatformException catch (e) {
