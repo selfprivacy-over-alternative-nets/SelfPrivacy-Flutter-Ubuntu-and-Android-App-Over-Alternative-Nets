@@ -128,25 +128,46 @@ abstract class GraphQLApiMap {
       }
       ioClient = _onionClient!;
     } else {
-      // Nominal path (clearnet HTTPS) — unchanged: a fresh client per call.
-      // DEV (--dart-define=HTTPS_DOMAIN=…): the dev clearnet backend serves a SELF-SIGNED cert, just
-      // like the onion path. But `server_installation_repository` sets `verifyCertificate = !isOnion`
-      // when it loads a saved server, flipping it to TRUE for a clearnet dev domain AFTER boot — so
-      // early queries succeed (cert trusted) but later mutations/apply fail with
-      // CERTIFICATE_VERIFY_FAILED. When built with the compile-time HTTPS_DOMAIN dev define we always
-      // trust the self-signed cert (dev-only; production builds carry no such define).
-      const bool devHttps = bool.hasEnvironment('HTTPS_DOMAIN');
-      final HttpClient baseHttpClient = HttpClient();
-      if (devHttps || TlsOptions.stagingAcme || !TlsOptions.verifyCertificate) {
-        baseHttpClient.badCertificateCallback =
-            (final X509Certificate cert, final String host, final int port) =>
-                true;
+      // Nominal path (clearnet HTTPS) — a fresh client per call.
+      //
+      // DEV over a REAL domain with a REAL cert (--dart-define=HTTPS_CA=/path/to/rootCA.pem):
+      // actually VALIDATE the server certificate against the given CA (e.g. the local mkcert root
+      // that signs https://theory7.weersurf.nl). No blind trust — a wrong/expired/missing cert then
+      // fails the TLS handshake, so the `https` transport genuinely exercises certificate validation.
+      const String httpsCa = String.fromEnvironment('HTTPS_CA', defaultValue: '');
+      final HttpClient baseHttpClient;
+      if (httpsCa.isNotEmpty) {
+        // withTrustedRoots:FALSE — trust ONLY this CA, not the OS/built-in roots. (On Linux the
+        // built-in roots also consult the system store, where a mkcert CA is installed, so
+        // withTrustedRoots:true would accept the cert even against a wrong --dart-define=HTTPS_CA,
+        // defeating the check. false makes it strict: a cert not signed by exactly this CA fails.)
+        final SecurityContext ctx = SecurityContext(withTrustedRoots: false)
+          ..setTrustedCertificates(httpsCa);
+        baseHttpClient = HttpClient(context: ctx);
+      } else {
+        // DEV self-signed fallback (--dart-define=HTTPS_DOMAIN without HTTPS_CA): trust it.
+        // `server_installation_repository` sets `verifyCertificate = !isOnion` when it loads a saved
+        // server, flipping to TRUE for a clearnet dev domain AFTER boot — so early queries succeed
+        // (cert trusted) but later mutations/apply would fail with CERTIFICATE_VERIFY_FAILED. When
+        // built with the compile-time HTTPS_DOMAIN dev define we always trust the self-signed cert
+        // (dev-only; production builds carry no such define).
+        const bool devHttps = bool.hasEnvironment('HTTPS_DOMAIN');
+        baseHttpClient = HttpClient();
+        if (devHttps || TlsOptions.stagingAcme || !TlsOptions.verifyCertificate) {
+          baseHttpClient.badCertificateCallback =
+              (final X509Certificate cert, final String host, final int port) =>
+                  true;
+        }
       }
       ioClient = IOClient(baseHttpClient);
     }
 
+    // Clearnet normally targets api.<domain>. DEV (--dart-define=HTTPS_APEX=1) targets the domain
+    // as-is (no `api.` prefix) — used for a trusted local reverse-proxy name like theory7.weersurf.nl.
+    const bool httpsApex = bool.hasEnvironment('HTTPS_APEX');
+    final String clearHost = httpsApex ? (rootAddress ?? '') : 'api.$rootAddress';
     final String httpUri =
-        isOnion ? 'https://$rootAddress/graphql' : 'https://api.$rootAddress/graphql';
+        isOnion ? 'https://$rootAddress/graphql' : 'https://$clearHost/graphql';
     final httpLink = HttpLink(
       httpUri,
       httpClient: ioClient,
@@ -192,8 +213,10 @@ abstract class GraphQLApiMap {
   }) async {
     final bool isOnion = (rootAddress ?? '').endsWith('.onion');
     // Note: WebSocket over Tor may be unreliable; higher layer may fall back to polling.
+    const bool httpsApex = bool.hasEnvironment('HTTPS_APEX');
+    final String clearHost = httpsApex ? (rootAddress ?? '') : 'api.$rootAddress';
     final String wsUri =
-        isOnion ? 'wss://$rootAddress/graphql' : 'ws://api.$rootAddress/graphql';
+        isOnion ? 'wss://$rootAddress/graphql' : 'ws://$clearHost/graphql';
     final WebSocketLink webSocketLink = WebSocketLink(
       wsUri,
       // Only [GraphQLProtocol.graphqlTransportWs] supports automatic pings, so we don't disconnect when nothing happens.
