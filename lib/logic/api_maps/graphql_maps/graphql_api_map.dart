@@ -129,8 +129,15 @@ abstract class GraphQLApiMap {
       ioClient = _onionClient!;
     } else {
       // Nominal path (clearnet HTTPS) — unchanged: a fresh client per call.
+      // DEV (--dart-define=HTTPS_DOMAIN=…): the dev clearnet backend serves a SELF-SIGNED cert, just
+      // like the onion path. But `server_installation_repository` sets `verifyCertificate = !isOnion`
+      // when it loads a saved server, flipping it to TRUE for a clearnet dev domain AFTER boot — so
+      // early queries succeed (cert trusted) but later mutations/apply fail with
+      // CERTIFICATE_VERIFY_FAILED. When built with the compile-time HTTPS_DOMAIN dev define we always
+      // trust the self-signed cert (dev-only; production builds carry no such define).
+      const bool devHttps = bool.hasEnvironment('HTTPS_DOMAIN');
       final HttpClient baseHttpClient = HttpClient();
-      if (TlsOptions.stagingAcme || !TlsOptions.verifyCertificate) {
+      if (devHttps || TlsOptions.stagingAcme || !TlsOptions.verifyCertificate) {
         baseHttpClient.badCertificateCallback =
             (final X509Certificate cert, final String host, final int port) =>
                 true;
