@@ -118,7 +118,8 @@ abstract class GraphQLApiMap {
               (final X509Certificate cert, final String host, final int port) =>
                   true;
         SocksTCPClient.assignToHttpClientWithSecureOptions(base, [
-          ProxySettings(InternetAddress.loopbackIPv4, 9050),
+          ProxySettings(InternetAddress.loopbackIPv4,
+              const int.fromEnvironment('SOCKS_PORT', defaultValue: 9050)),
         ],
           onBadCertificate: (final X509Certificate certificate) => true,
         );

@@ -29,7 +29,8 @@ abstract class RestApiMap {
           // Linux: Tor daemon on 9050
           // Android: Orbot on 9050
           SocksTCPClient.assignToHttpClientWithSecureOptions(client, [
-            ProxySettings(InternetAddress.loopbackIPv4, 9050),
+            ProxySettings(InternetAddress.loopbackIPv4,
+                const int.fromEnvironment('SOCKS_PORT', defaultValue: 9050)),
           ],
             onBadCertificate: (final X509Certificate certificate) => true,
           );
