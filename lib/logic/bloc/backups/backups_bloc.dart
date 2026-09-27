@@ -122,6 +122,18 @@ class BackupsBloc extends Bloc<BackupsEvent, BackupsState> {
     if (state is! BackupsUnititialized) {
       return;
     }
+    // Required-data guard: never show the initializing spinner if the backup
+    // storage credentials are missing — surface a clear error instead.
+    if (event.credential.keyId.trim().isEmpty ||
+        event.credential.applicationKey.trim().isEmpty) {
+      emit(BackupsUnititialized());
+      getIt<NavigationService>().showSnackBar(
+        'Cannot initialize backups: backup storage credentials are missing. '
+        'Required: Backblaze B2 Key ID and Application Key '
+        '(add them under More → API tokens).',
+      );
+      return;
+    }
     emit(BackupsInitializing());
     final String? encryptionKey =
         getIt<ApiConnectionRepository>()

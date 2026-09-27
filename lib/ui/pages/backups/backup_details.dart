@@ -73,25 +73,65 @@ class BackupDetailsPage extends StatelessWidget {
         heroTitle: 'backup.card_title'.tr(),
         heroSubtitle: 'backup.description'.tr(),
         children: [
-          if (preventActions || tokensState.backupsCredentials.isEmpty)
+          // Genuinely busy (initializing / still loading) -> spinner.
+          if (preventActions)
             const Center(
               child: Padding(
                 padding: EdgeInsets.all(16),
                 child: CircularProgressIndicator.adaptive(),
               ),
             ),
-          if (!preventActions)
+          // Required data missing: no backup storage credential has been added.
+          // Previously this silently showed a spinner forever (and Initialize
+          // would crash on .first of an empty list). Explain what's required.
+          if (!preventActions && tokensState.backupsCredentials.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Backup storage is not configured',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Backups cannot be initialized until a backup storage '
+                    'provider is added. Required data:\n\n'
+                    '  • Backblaze B2 Key ID (applicationKeyId)\n'
+                    '  • Backblaze B2 Application Key\n\n'
+                    'Add these under More → API tokens (backup storage), then '
+                    'come back here and press Initialize.',
+                  ),
+                ],
+              ),
+            ),
+          // Credentials present and not busy: allow initialize.
+          if (!preventActions && tokensState.backupsCredentials.isNotEmpty)
             BrandButton.filled(
-              onPressed:
-                  preventActions
-                      ? null
-                      : () {
-                        context.read<BackupsBloc>().add(
-                          InitializeBackupsRepository(
-                            tokensState.backupsCredentials.first.data,
-                          ),
-                        );
-                      },
+              onPressed: () {
+                context.read<BackupsBloc>().add(
+                  InitializeBackupsRepository(
+                    tokensState.backupsCredentials.first.data,
+                  ),
+                );
+              },
               title: 'backup.initialize'.tr(),
             ),
         ],
