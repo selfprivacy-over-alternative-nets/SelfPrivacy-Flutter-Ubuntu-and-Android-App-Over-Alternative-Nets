@@ -215,8 +215,11 @@ abstract class GraphQLApiMap {
     // Note: WebSocket over Tor may be unreliable; higher layer may fall back to polling.
     const bool httpsApex = bool.hasEnvironment('HTTPS_APEX');
     final String clearHost = httpsApex ? (rootAddress ?? '') : 'api.$rootAddress';
+    // Clearnet subscriptions MUST use wss:// (TLS on :443). Plain ws:// targets :80,
+    // which SelfPrivacy backends don't serve (only :443) — the socket never connects,
+    // autoReconnect spins, and job/log tabs hang. Onion already uses wss://.
     final String wsUri =
-        isOnion ? 'wss://$rootAddress/graphql' : 'ws://$clearHost/graphql';
+        isOnion ? 'wss://$rootAddress/graphql' : 'wss://$clearHost/graphql';
     final WebSocketLink webSocketLink = WebSocketLink(
       wsUri,
       // Only [GraphQLProtocol.graphqlTransportWs] supports automatic pings, so we don't disconnect when nothing happens.
