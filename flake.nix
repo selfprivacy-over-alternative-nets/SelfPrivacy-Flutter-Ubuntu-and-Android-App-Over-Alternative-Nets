@@ -3,8 +3,11 @@
 
   # inputs.nixpkgs.url = "github:NixOS/nixpkgs/c1ce56e9c606b4cd31f0950768911b1171b8db51";
   inputs.flake-utils.url = "github:numtide/flake-utils";
+  # A recent nixpkgs ONLY for the Flutter toolchain — the pinned nixpkgs above tops out at flutter335,
+  # too old for this app (Flutter 3.44 / material_color_utilities ^0.13.0). Everything else stays pinned.
+  inputs.nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-  outputs = { self, nixpkgs, flake-utils, ... }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         lib = nixpkgs.lib;
@@ -19,7 +22,13 @@
           config.android_sdk.accept_license = true;
         };
 
-        spFlutter = pkgs.flutter332;
+        # Flutter toolchain from the recent nixpkgs (android SDK + gtk/build deps below stay on `pkgs`).
+        pkgsU = import nixpkgs-unstable {
+          inherit system;
+          config.allowUnfree = true;
+        };
+
+        spFlutter = pkgsU.flutter344;   # 3.44.4 / Dart 3.12 — matches the committed pubspec.lock (0.13.0)
 
         androidComposition = pkgs.androidenv.composeAndroidPackages {
           platformToolsVersion = "34.0.5";
