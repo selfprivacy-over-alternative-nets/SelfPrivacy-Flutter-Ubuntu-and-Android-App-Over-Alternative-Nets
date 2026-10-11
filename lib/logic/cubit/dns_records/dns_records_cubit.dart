@@ -67,7 +67,17 @@ class DnsRecordsCubit extends ServerConnectionDependentCubit<DnsRecordsState> {
     }
 
     if (!foundRecords.success || foundRecords.data.isEmpty) {
-      emit(const DnsRecordsState());
+      // Empty-but-successful (provider NONE / a tunnel → requiredDnsRecords is []) is a
+      // LOADED 'good' state with no records, NOT 'uninitialized' — otherwise the UI
+      // skeletons forever (req 161). A genuine failure stays uninitialized to retry.
+      emit(
+        DnsRecordsState(
+          dnsState: foundRecords.success
+              ? DnsRecordsStatus.good
+              : DnsRecordsStatus.uninitialized,
+          dnsRecords: const [],
+        ),
+      );
       return;
     }
 

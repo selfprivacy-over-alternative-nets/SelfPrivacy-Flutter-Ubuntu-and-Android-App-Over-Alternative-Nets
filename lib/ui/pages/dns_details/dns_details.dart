@@ -45,10 +45,14 @@ class _DnsDetailsPageState extends State<DnsDetailsPage> {
       );
     }
 
-    final recordsToShow =
-        dnsRecords.isEmpty ? FakeSelfPrivacyData.desiredDnsRecords : dnsRecords;
+    // 'refreshing' (→ skeleton) must track the LOADING STATE, not emptiness: a genuinely
+    // empty result (provider NONE / a tunnel, where requiredDnsRecords is []) is 'good'
+    // and must render as empty — not skeleton forever (req 161).
     final refreshing =
-        dnsCubit.dnsState == DnsRecordsStatus.refreshing || dnsRecords.isEmpty;
+        dnsCubit.dnsState == DnsRecordsStatus.refreshing ||
+        dnsCubit.dnsState == DnsRecordsStatus.uninitialized;
+    final recordsToShow =
+        refreshing ? FakeSelfPrivacyData.desiredDnsRecords : dnsRecords;
 
     List<Widget> recordsSection(
       final String title,
