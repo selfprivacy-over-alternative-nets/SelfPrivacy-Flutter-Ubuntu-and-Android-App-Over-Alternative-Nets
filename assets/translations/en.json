@@ -221,6 +221,7 @@
         "email_subtitle": "Records necessary for secure email exchange.",
         "other_title": "Other",
         "other_subtitle": "Other records needed for the work of the SelfPrivacy",
+        "no_records_needed": "No DNS records are needed for this setup — this server is reached over {setup}, so there is no DNS provider to manage here.",
         "update_list": "Update list"
     },
     "backup": {

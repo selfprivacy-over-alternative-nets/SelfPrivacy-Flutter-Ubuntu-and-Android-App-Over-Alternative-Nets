@@ -53,6 +53,9 @@ class _DnsDetailsPageState extends State<DnsDetailsPage> {
         dnsCubit.dnsState == DnsRecordsStatus.uninitialized;
     final recordsToShow =
         refreshing ? FakeSelfPrivacyData.desiredDnsRecords : dnsRecords;
+    // Loaded AND genuinely empty (provider NONE / a tunnel): show an explicit
+    // "no records needed" message naming the setup, instead of empty headings (req 161).
+    final bool noRecords = !refreshing && dnsRecords.isEmpty;
 
     List<Widget> recordsSection(
       final String title,
@@ -87,24 +90,64 @@ class _DnsDetailsPageState extends State<DnsDetailsPage> {
           },
         ),
         const Gap(8),
-        ...recordsSection(
-          'domain.services_title'.tr(),
-          'domain.services_subtitle'.tr(),
-          DnsRecordsCategory.services,
-        ),
-        const Gap(8),
-        ...recordsSection(
-          'domain.email_title'.tr(),
-          'domain.email_subtitle'.tr(),
-          DnsRecordsCategory.email,
-        ),
-        const Gap(8),
-        ...recordsSection(
-          'domain.other_title'.tr(),
-          'domain.other_subtitle'.tr(),
-          DnsRecordsCategory.other,
-        ),
+        if (noRecords)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              'domain.no_records_needed'.tr(
+                namedArgs: {'setup': _setupLabel(domain)},
+              ),
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          )
+        else ...<Widget>[
+          ...recordsSection(
+            'domain.services_title'.tr(),
+            'domain.services_subtitle'.tr(),
+            DnsRecordsCategory.services,
+          ),
+          const Gap(8),
+          ...recordsSection(
+            'domain.email_title'.tr(),
+            'domain.email_subtitle'.tr(),
+            DnsRecordsCategory.email,
+          ),
+          const Gap(8),
+          ...recordsSection(
+            'domain.other_title'.tr(),
+            'domain.other_subtitle'.tr(),
+            DnsRecordsCategory.other,
+          ),
+        ],
       ],
     );
   }
+}
+
+/// Human label for the reachability setup, derived from the public domain, so the
+/// "no DNS records needed" message names WHY there is nothing to configure (req 161).
+/// A single-hostname tunnel (provider NONE) has no DNS records to manage.
+String _setupLabel(final String domain) {
+  final String d = domain.toLowerCase();
+  if (d.endsWith('.ts.net')) {
+    return 'a Tailscale Funnel tunnel';
+  }
+  if (d.endsWith('.trycloudflare.com')) {
+    return 'a Cloudflare quick tunnel';
+  }
+  if (d.endsWith('.ngrok-free.app') ||
+      d.endsWith('.ngrok.app') ||
+      d.endsWith('.ngrok.io')) {
+    return 'an ngrok tunnel';
+  }
+  if (d.endsWith('.loca.lt')) {
+    return 'a LocalTunnel tunnel';
+  }
+  if (d.endsWith('.pinggy.link')) {
+    return 'a Pinggy tunnel';
+  }
+  if (d.endsWith('.onion')) {
+    return 'a Tor hidden service';
+  }
+  return 'a tunnel (no DNS provider to manage)';
 }
